@@ -31,3 +31,12 @@ describe('parseCollectorNumber on OCR-noisy strings', () => {
     expect(parseCollectorNumber('SS/Bl  025/165')!.number).toBe('25');
   });
 });
+
+describe('findTotalHints (slash lost by OCR)', () => {
+  it('keeps the trusted 3-digit set total', async () => {
+    const { findTotalHints } = await import('../src/lib/collector');
+    expect(findTotalHints('IN. Miisuhko As ©2016 Poneman 11108 + XX')).toEqual([108]);
+    expect(findTotalHints('cca n L108 XT')).toEqual([108]);
+    expect(findTotalHints('©2016 Pokémon 1,400 metri')).toEqual([]);
+  });
+});

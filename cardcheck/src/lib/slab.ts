@@ -33,21 +33,22 @@ const GRADE_WORDS: Array<[RegExp, string, number[]]> = [
 const GRADE_NUM = '([0-9OIL]{1,2}(?:\\.5)?)';
 
 function findGrade(up: string): { grade: string; label: string } | null {
-  let fallback: { grade: string; label: string } | null = null;
+  let labelOnly: { grade: string; label: string } | null = null;
   for (const [word, label, expected] of GRADE_WORDS) {
-    const re = new RegExp(`(?<![A-Z])${word.source}\\s*[:\\-]?\\s*${GRADE_NUM}(?![0-9])`, 'g');
+    const re = new RegExp(`(?<![A-Z])${word.source}(?:\\s*[:\\-]?\\s*${GRADE_NUM}(?![0-9]))?`, 'g');
     for (const m of up.matchAll(re)) {
-      const d = toDigits(m[1].replace('.5', ''));
-      if (!d) continue;
-      const value = parseFloat(d.digits + (m[1].endsWith('.5') ? '.5' : ''));
-      if (!(value >= 1 && value <= 10)) continue;
-      const hit = { grade: String(value), label };
-      // A grade that agrees with its label wording is trusted first.
-      if (expected.includes(value)) return hit;
-      fallback ??= hit;
+      if (m[1]) {
+        const d = toDigits(m[1].replace('.5', ''));
+        const value = d ? parseFloat(d.digits + (m[1].endsWith('.5') ? '.5' : '')) : NaN;
+        // A grade that agrees with its label wording is trusted.
+        if (expected.includes(value)) return { grade: String(value), label };
+      }
+      // Otherwise the wording decides the grade (GEM MT is always 10); OCR often splits the
+      // number onto another line or misreads it.
+      labelOnly ??= { grade: String(expected[0]), label };
     }
   }
-  return fallback;
+  return labelOnly;
 }
 
 function findCert(up: string): string | undefined {

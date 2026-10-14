@@ -1,0 +1,34 @@
+:root { --fg: #111827; --muted: #6b7280; --line: #e5e7eb; --accent: #1d4ed8; --good: #15803d; --fair: #a16207; --over: #b91c1c; color-scheme: light; }
+* { box-sizing: border-box; }
+body { margin: 0; width: 380px; min-height: 200px; font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; color: var(--fg); background: #fff; }
+body.page { width: auto; max-width: 640px; margin: 0 auto; padding: 16px; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+header strong { color: var(--accent); font-size: 15px; }
+nav { display: flex; gap: 4px; }
+nav button { font: inherit; border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+nav button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+#status:empty { display: none; }
+#status { padding: 6px 12px; background: #eff6ff; color: #1e3a8a; font-size: 12px; }
+main { padding: 8px 12px 12px; }
+.empty { color: var(--muted); padding: 16px 0; text-align: center; }
+.row { display: flex; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.row img { width: 44px; border-radius: 3px; align-self: flex-start; }
+.row .body { flex: 1; min-width: 0; }
+.row .name { font-weight: 600; }
+.meta, .src { color: var(--muted); font-size: 11.5px; }
+.price { font-weight: 600; }
+.trend.up { color: var(--over); } .trend.down { color: var(--good); } .trend.flat, .trend.changed { color: var(--muted); }
+.watch { border: 0; background: none; font-size: 18px; cursor: pointer; color: #d1d5db; padding: 0 2px; align-self: flex-start; }
+.watch.on { color: #f59e0b; }
+.v-good { color: var(--good); } .v-fair { color: var(--fair); } .v-over { color: var(--over); } .v-unknown { color: var(--muted); }
+form.settings { display: grid; gap: 10px; }
+form.settings label { display: grid; gap: 3px; font-weight: 600; }
+form.settings label span.help { font-weight: 400; color: var(--muted); font-size: 11.5px; }
+form.settings input, form.settings select { font: inherit; padding: 4px 6px; border: 1px solid #d1d5db; border-radius: 6px; }
+fieldset { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; display: grid; gap: 8px; }
+legend { font-weight: 700; padding: 0 4px; }
+.pair { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.actions { display: flex; gap: 8px; align-items: center; }
+.actions button { font: inherit; padding: 5px 14px; border-radius: 6px; border: 0; background: var(--accent); color: #fff; cursor: pointer; }
+.error { color: var(--over); }
+a { color: var(--accent); }

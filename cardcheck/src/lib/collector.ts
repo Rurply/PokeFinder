@@ -100,3 +100,23 @@ export function findCollectorNumbers(text: string): CollectorNumber[] {
 export function parseCollectorNumber(text: string): CollectorNumber | null {
   return findCollectorNumbers(text)[0] ?? null;
 }
+
+const RUN_RE = new RegExp(`(?<![0-9A-Za-z])(${CH}{4,7})(?![0-9A-Za-z/\\\\])`, 'g');
+
+/**
+ * Weak hints: set totals from collector numbers whose slash OCR dropped or misread
+ * ("11/108" -> "1108" or "11108"). Only the last three digits are trusted.
+ */
+export function findTotalHints(text: string): number[] {
+  const out: number[] = [];
+  for (const m of (text || '').matchAll(RUN_RE)) {
+    const d = toDigits(m[1]);
+    if (!d || d.digits.length - d.substitutions < 3) continue;
+    if (/^(19|20)\d\d$/.test(d.digits)) continue; // years
+    const tail = d.digits.slice(-3);
+    if (tail[0] === '0') continue;
+    const total = parseInt(tail, 10);
+    if (total >= 30 && total <= 300 && !out.includes(total)) out.push(total);
+  }
+  return out;
+}

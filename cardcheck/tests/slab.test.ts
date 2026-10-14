@@ -22,3 +22,12 @@ describe('parseSlab', () => {
     expect(parseSlab('Charizard ex HP 330 125/197').isSlab).toBe(false);
   });
 });
+
+describe('parseSlab grade wording', () => {
+  it('trusts the label wording when the number is split off or misread', () => {
+    const s = parseSlab('2022 POKEMON JPN. SV P #01\nPIKACHU\nGEM MT\n\n3 AA\n10\n16802855');
+    expect(s.grade).toBe('10');
+    expect(s.gradeLabel).toBe('GEM MT');
+    expect(s.cert).toBe('16802855');
+  });
+});

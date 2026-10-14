@@ -7,6 +7,7 @@ const STOP = new Set([
   'prize', 'opponent', 'knocked', 'out', 'psa', 'gem', 'mint', 'with', 'that', 'for', 'each',
   'more', 'does', 'turn', 'during', 'may', 'search', 'deck', 'then', 'shuffle', 'holo', 'rare',
   'nintendo', 'creatures', 'game', 'freak', 'japan', 'graphics', 'all', 'hand', 'discard',
+  'stages', 'evolve', 'evol', 'fase', 'phase', 'pokemon',
 ]);
 
 export function normalize(s: string): string {
@@ -17,6 +18,14 @@ export function normalize(s: string): string {
     .replace(/[^a-z0-9\s]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** A word that could be part of a card name (not a rules/label word or OCR junk). */
+export function isNameWord(raw: string): boolean {
+  const w = raw.replace(/^[^A-Za-zÀ-ÿ]+|[^A-Za-zÀ-ÿ'’]+$/g, '');
+  if (w.length < 3 || !/^[A-Za-zÀ-ÿ'’\-]+$/.test(w)) return false;
+  const n = normalize(w);
+  return n.length >= 3 && !STOP.has(n) && /^[A-ZÀ-Þ]/.test(w);
 }
 
 /** Up to 4 likely card-name words from OCR text, in reading order. */
@@ -64,7 +73,8 @@ export function nameSimilarity(cardName: string, ocrText: string): number {
     const weight = SUFFIXES.has(nt) ? 0.3 : nt.length;
     let best = 0;
     for (const tt of textTokens) {
-      const sim = 1 - levenshtein(nt, tt) / Math.max(nt.length, tt.length);
+      // One wrong letter in a short word is as likely to be noise as a match.
+      const sim = nt.length < 5 ? (nt === tt ? 1 : 0) : 1 - levenshtein(nt, tt) / Math.max(nt.length, tt.length);
       if (sim > best) best = sim;
       if (best === 1) break;
     }

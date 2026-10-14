@@ -7,11 +7,11 @@ import { choosePrice } from '../../src/lib/pricing';
 import { getCard, searchCards } from '../../src/lib/tcgapi';
 
 const cache = createCache(memoryKV());
-const apiKey = process.env.POKEMONTCG_API_KEY;
+const apiKey = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.POKEMONTCG_API_KEY;
 
 it('Charizard ex, Obsidian Flames 125/197', { timeout: 120_000 }, async () => {
   const parsed = parseManual('Charizard ex 125/197');
-  const query = buildQueries(parsed)[0];
+  const query = buildQueries(parsed)[0].q;
   const cards = await searchCards(query, { cache, apiKey });
   const ranked = rankCards(cards, parsed);
   const card = await getCard(ranked[0].card.id, { cache, apiKey, force: true });

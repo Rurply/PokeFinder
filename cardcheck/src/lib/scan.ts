@@ -27,28 +27,43 @@ export async function fetchImageViaWorker(url: string): Promise<Blob> {
   return new Blob([bytes], { type: r.type });
 }
 
+const MAX_QUERIES = 7;
+
+/**
+ * Runs queries from most to least specific, merging results, until the best match is
+ * high-confidence (a misread number can make the first query return the wrong cards).
+ */
 async function runQueries(parsed: Parsed, settings: Settings): Promise<Identification> {
-  const queries = buildQueries(parsed);
+  const queries = buildQueries(parsed).slice(0, MAX_QUERIES);
+  const seen = new Map<string, Card>();
+  const used: string[] = [];
+  let best: Identification | null = null;
   let lastError: unknown;
   for (const query of queries) {
     try {
-      const cards = await searchCards(query, { apiKey: settings.tcgApiKey, cache });
-      if (cards.length) {
-        const ranked = rankCards(cards, parsed);
-        return { parsed, ranked, confidence: confidenceOf(ranked), query };
-      }
+      const cards = await searchCards(query.q, { apiKey: settings.tcgApiKey, cache, pageSize: query.pageSize });
+      if (!cards.length) continue;
+      used.push(query.q);
+      for (const c of cards) seen.set(c.id, c);
+      const ranked = rankCards([...seen.values()], parsed);
+      best = { parsed, ranked, confidence: confidenceOf(ranked), query: used.join(' | ') };
+      if (best.confidence === 'high') break;
     } catch (e) {
       lastError = e;
     }
   }
-  if (lastError && queries.length) throw new Error('Pokémon TCG API unavailable – try again in a moment');
+  if (best) return best;
+  if (lastError) throw new Error('Pokémon TCG API unavailable – try again in a moment');
   return { parsed, ranked: [], confidence: 'low' };
 }
 
 export async function identifyImage(blob: Blob, settings: Settings, onProgress?: (s: string) => void): Promise<Identification> {
   const text = await ocrImage(blob, onProgress);
   onProgress?.('Looking up card…');
-  return runQueries(parseOcr(text), settings);
+  const parsed = parseOcr(text);
+  // Debug aid (inspect the overlay frame in DevTools): raw OCR text and what was parsed.
+  (globalThis as { __cardcheckDebug?: unknown }).__cardcheckDebug = { text, parsed };
+  return runQueries(parsed, settings);
 }
 
 /** Manual search box: free text like "charizard ex 125/197", or a card ID like "sv3-125". */
