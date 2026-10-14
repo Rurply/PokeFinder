@@ -37,14 +37,25 @@ export function createCache(kv: KVStore, now: () => number = Date.now) {
       const r = await kv.get([k]);
       return r[k] as Entry<T> | undefined;
     },
+    /** Never throws: on a storage error (e.g. quota) the cache is cleared and the write retried once. */
     async set<T>(key: string, value: T): Promise<void> {
-      await kv.set({ [CACHE_PREFIX + key]: { v: value, t: now() } satisfies Entry<T> });
+      const item = { [CACHE_PREFIX + key]: { v: value, t: now() } satisfies Entry<T> };
+      try {
+        await kv.set(item);
+      } catch {
+        try {
+          await this.prune(-1);
+          await kv.set(item);
+        } catch {
+          /* caching is best-effort */
+        }
+      }
     },
-    /** Removes entries older than maxAgeMs. */
+    /** Removes entries older than maxAgeMs (-1 removes all cache entries). */
     async prune(maxAgeMs: number): Promise<number> {
       const all = await kv.get(null);
       const stale = Object.entries(all)
-        .filter(([k, e]) => k.startsWith(CACHE_PREFIX) && now() - ((e as Entry<unknown>)?.t ?? 0) > maxAgeMs)
+        .filter(([k, e]) => k.startsWith(CACHE_PREFIX) && (maxAgeMs < 0 || now() - ((e as Entry<unknown>)?.t ?? 0) > maxAgeMs))
         .map(([k]) => k);
       if (stale.length) await kv.remove(stale);
       return stale.length;

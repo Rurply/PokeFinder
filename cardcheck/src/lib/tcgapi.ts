@@ -63,16 +63,21 @@ export async function getCard(id: string, o: TcgApiOptions & { force?: boolean }
  */
 export async function searchCards(q: string, o: TcgApiOptions & { pageSize?: number }): Promise<Card[]> {
   const pageSize = o.pageSize ?? 30;
+  // Whole-set listings (up to 250 cards) are a fallback; caching them would eat the
+  // 10 MB chrome.storage.local quota.
+  const cacheable = pageSize <= 50;
   const key = `search:${pageSize}:${q}`;
-  const ids = await o.cache.get<string[]>(key, TTL.search);
+  const ids = cacheable ? await o.cache.get<string[]>(key, TTL.search) : undefined;
   if (ids) {
     const cards = await Promise.all(ids.map((id) => o.cache.get<Card>(`card:${id}`, TTL.card)));
     if (cards.every(Boolean)) return cards as Card[];
   }
   const params = new URLSearchParams({ q, pageSize: String(pageSize), orderBy: '-set.releaseDate', select: SELECT });
   const res = await fetchJson<{ data: Card[] }>(`${TCG_API_BASE}/cards?${params}`, { headers: headers(o.apiKey) }, o.fetchFn);
-  for (const c of res.data) await o.cache.set(`card:${c.id}`, c);
-  await o.cache.set(key, res.data.map((c) => c.id));
+  if (cacheable) {
+    for (const c of res.data) await o.cache.set(`card:${c.id}`, c);
+    await o.cache.set(key, res.data.map((c) => c.id));
+  }
   return res.data;
 }
 

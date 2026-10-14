@@ -37,4 +37,18 @@ describe('cache expiry', () => {
     expect(await cache.get('new', TTL.card)).toBe(2);
     expect(await kv.get(['settings'])).toEqual({ settings: { currency: 'EUR' } });
   });
+
+  it('never throws when storage is full; clears the cache and retries once', async () => {
+    const kv = memoryKV();
+    let failNext = true;
+    const flaky = { ...kv, set: async (items: Record<string, unknown>) => (failNext ? ((failNext = false), Promise.reject(new Error('QUOTA_BYTES quota exceeded'))) : kv.set(items)) };
+    const cache = createCache(flaky);
+    await kv.set({ 'cache:old': { v: 1, t: 0 }, settings: { currency: 'EUR' } });
+    await expect(cache.set('card:a', 1)).resolves.toBeUndefined();
+    expect(await cache.get('card:a', TTL.card)).toBe(1);
+    expect(await kv.get(['cache:old'])).toEqual({});
+    expect(await kv.get(['settings'])).toEqual({ settings: { currency: 'EUR' } });
+    const broken = createCache({ ...kv, set: () => Promise.reject(new Error('quota')) });
+    await expect(broken.set('card:b', 2)).resolves.toBeUndefined();
+  });
 });
