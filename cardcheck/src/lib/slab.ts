@@ -90,6 +90,9 @@ export function parseSlab(text: string): SlabInfo {
   }
 
   const year = up.match(/\b(199\d|20[0-3]\d)\b/)?.[1];
-  const isSlab = hasPsa || (!!grade && (!!cert || !!number));
+  // Short grade words (EX, NM, PR, VG…) also occur in normal card text and OCR noise, so
+  // without "PSA" on the label only the long label wordings plus a cert number count.
+  const strongLabel = !!grade && ['GEM MT', 'MINT', 'NM-MT', 'EX-MT', 'VG-EX'].includes(grade.label);
+  const isSlab = hasPsa || (strongLabel && !!cert);
   return { isSlab, cert, grade: grade?.grade, gradeLabel: grade?.label, number, name, year };
 }

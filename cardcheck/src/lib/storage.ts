@@ -13,7 +13,6 @@ export interface Settings {
   sourcePolicy: SourcePolicy;
   /** Max age (days) for Cardmarket prices before "freshest wins" prefers TCGplayer. */
   freshnessDays: number;
-  tcgApiKey: string;
   psaToken: string;
 }
 
@@ -24,7 +23,6 @@ export const DEFAULT_SETTINGS: Settings = {
   cmMetric: 'trend',
   sourcePolicy: 'auto',
   freshnessDays: 30,
-  tcgApiKey: '',
   psaToken: '',
 };
 
@@ -43,7 +41,8 @@ export const cache = createCache(kv);
 
 export async function getSettings(): Promise<Settings> {
   const r = await kv.get(['settings']);
-  return { ...DEFAULT_SETTINGS, ...((r.settings as Partial<Settings>) ?? {}) };
+  const { tcgApiKey: _unused, ...stored } = (r.settings as Partial<Settings> & { tcgApiKey?: string }) ?? {};
+  return { ...DEFAULT_SETTINGS, ...stored };
 }
 
 export async function saveSettings(patch: Partial<Settings>): Promise<Settings> {
@@ -57,6 +56,8 @@ export interface HistoryEntry {
   id: string;
   scannedAt: number;
   cardId: string;
+  /** Card-data language (TCGdex); entries from before the switch have none. */
+  lang?: 'en' | 'ja';
   name: string;
   setName: string;
   number: string;

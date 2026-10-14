@@ -19,7 +19,7 @@ export default defineManifest({
     // Listing photos are served from the marketplaces' own image CDNs.
     'https://*.marktplaats.com/*',
     'https://*.vinted.net/*',
-    'https://api.pokemontcg.io/*',
+    'https://api.tcgdex.net/*',
     'https://api.frankfurter.dev/*',
     'https://api.psacard.com/*',
   ],

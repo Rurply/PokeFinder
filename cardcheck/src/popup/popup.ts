@@ -3,7 +3,7 @@ import { CURRENCIES, formatMoney, getRates, type Rates } from '../lib/currency';
 import { choosePrice, type PricePoint } from '../lib/pricing';
 import { samePriceSeries } from '../lib/scan';
 import { cache, getHistory, getSettings, saveSettings, updateHistory, type HistoryEntry, type Settings } from '../lib/storage';
-import { getCard } from '../lib/tcgapi';
+import { getCard } from '../lib/tcgdex';
 import { h, inCurrency, timeAgo } from '../lib/ui';
 import { VERDICT_LABEL } from '../lib/verdict';
 
@@ -85,9 +85,15 @@ async function repriceWatched() {
   if (!watched.length) return;
   setStatus(`Updating ${watched.length} watched card${watched.length > 1 ? 's' : ''}…`);
   let failed = 0;
+  let outdated = 0;
   for (const e of watched) {
+    // Scans from before the switch to TCGdex use another card-ID scheme.
+    if (!e.lang) {
+      outdated++;
+      continue;
+    }
     try {
-      const card = await getCard(e.cardId, { apiKey: settings.tcgApiKey, cache, force: true });
+      const card = await getCard(e.cardId, e.lang, { cache, force: true });
       const now = choosePrice(card, { metric: settings.cmMetric, policy: settings.sourcePolicy, freshnessDays: settings.freshnessDays }).primary;
       const prev = e.price; // trend is measured against the price at scan time
       let trend: HistoryEntry['trend'] = 'changed';
@@ -98,7 +104,11 @@ async function repriceWatched() {
     }
     await renderHistory();
   }
-  setStatus(failed ? `${failed} watched card(s) could not be updated (API unavailable)` : '');
+  const notes = [
+    failed ? `${failed} watched card(s) could not be updated (card database unavailable)` : '',
+    outdated ? `${outdated} watched card(s) are from an older CardCheck version – scan them again to keep watching` : '',
+  ].filter(Boolean);
+  setStatus(notes.join(' · '));
 }
 
 // ---- settings -------------------------------------------------------------------
@@ -148,10 +158,9 @@ function renderSettings() {
     h(
       'fieldset',
       {},
-      h('legend', {}, 'Optional free API keys'),
-      field('Pokémon TCG API key', secret('tcgApiKey', s.tcgApiKey, 'optional'), 'Raises rate limits. Existing keys work until the API shuts down (2027-03-01).'),
+      h('legend', {}, 'Optional free API key'),
       field('PSA Public API token', secret('psaToken', s.psaToken, 'optional'), 'Enables PSA cert verification (100 calls/day on free accounts).'),
-      h('span', { class: 'help meta' }, 'Keys are stored only in this browser (chrome.storage.local).'),
+      h('span', { class: 'help meta' }, 'Stored only in this browser (chrome.storage.local). Card data and prices come from TCGdex, which needs no key.'),
     ),
     h('div', { class: 'actions' }, h('button', { type: 'submit' }, 'Save'), msg),
   );
@@ -178,7 +187,6 @@ function renderSettings() {
       cmMetric: fd.get('cmMetric') as Settings['cmMetric'],
       sourcePolicy: fd.get('sourcePolicy') as Settings['sourcePolicy'],
       freshnessDays,
-      tcgApiKey: String(fd.get('tcgApiKey') ?? '').trim(),
       psaToken: String(fd.get('psaToken') ?? '').trim(),
     });
     rates = settings.currency === 'EUR' ? rates : await getRates(cache).catch(() => rates);

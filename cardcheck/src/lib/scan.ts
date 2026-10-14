@@ -3,7 +3,7 @@ import { buildQueries, confidenceOf, parseManual, parseOcr, rankCards, type Conf
 import { ocrImage } from './ocr';
 import { choosePrice, type PriceChoice, type PricePoint } from './pricing';
 import { cache, type Settings } from './storage';
-import { getCard, searchCards, type Card } from './tcgapi';
+import { getCard, LANGS, searchCards, type Card, type Lang } from './tcgdex';
 import { convert, getRates, type Rates } from './currency';
 
 export interface Identification {
@@ -27,13 +27,13 @@ export async function fetchImageViaWorker(url: string): Promise<Blob> {
   return new Blob([bytes], { type: r.type });
 }
 
-const MAX_QUERIES = 7;
+const MAX_QUERIES = 8;
 
 /**
  * Runs queries from most to least specific, merging results, until the best match is
  * high-confidence (a misread number can make the first query return the wrong cards).
  */
-async function runQueries(parsed: Parsed, settings: Settings): Promise<Identification> {
+async function runQueries(parsed: Parsed): Promise<Identification> {
   const queries = buildQueries(parsed).slice(0, MAX_QUERIES);
   const seen = new Map<string, Card>();
   const used: string[] = [];
@@ -41,10 +41,10 @@ async function runQueries(parsed: Parsed, settings: Settings): Promise<Identific
   let lastError: unknown;
   for (const query of queries) {
     try {
-      const cards = await searchCards(query.q, { apiKey: settings.tcgApiKey, cache, pageSize: query.pageSize });
+      const cards = await searchCards(query.filters, query.lang, { cache });
       if (!cards.length) continue;
-      used.push(query.q);
-      for (const c of cards) seen.set(c.id, c);
+      used.push(`${query.lang}:${new URLSearchParams(query.filters)}`);
+      for (const c of cards) seen.set(`${c.lang}:${c.id}`, c);
       const ranked = rankCards([...seen.values()], parsed);
       best = { parsed, ranked, confidence: confidenceOf(ranked), query: used.join(' | ') };
       if (best.confidence === 'high') break;
@@ -53,31 +53,43 @@ async function runQueries(parsed: Parsed, settings: Settings): Promise<Identific
     }
   }
   if (best) return best;
-  if (lastError) throw new Error('Pokémon TCG API unavailable – try again in a moment');
+  if (lastError) throw new Error('Card database (TCGdex) unavailable – try again in a moment');
   return { parsed, ranked: [], confidence: 'low' };
 }
 
-export async function identifyImage(blob: Blob, settings: Settings, onProgress?: (s: string) => void): Promise<Identification> {
+/** Identifies the card in a photo, using the listing title as an extra hint when there is one. */
+export async function identifyImage(blob: Blob, title: string | null, onProgress?: (s: string) => void): Promise<Identification> {
   const text = await ocrImage(blob, onProgress);
   onProgress?.('Looking up card…');
-  const parsed = parseOcr(text);
+  const parsed = parseOcr(text, title);
   // Debug aid (inspect the overlay frame in DevTools): raw OCR text and what was parsed.
   (globalThis as { __cardcheckDebug?: unknown }).__cardcheckDebug = { text, parsed };
-  return runQueries(parsed, settings);
+  return runQueries(parsed);
 }
 
-/** Manual search box: free text like "charizard ex 125/197", or a card ID like "sv3-125". */
-export async function identifyManual(input: string, settings: Settings): Promise<Identification> {
+/** Manual search box: free text like "charizard ex 125/197", or a card ID like "sv03-125" / "SV2a-025". */
+export async function identifyManual(input: string): Promise<Identification> {
   const trimmed = input.trim();
   if (/^[a-z0-9.]+-[a-z0-9]+$/i.test(trimmed)) {
-    try {
-      const card = await getCard(trimmed.toLowerCase(), { apiKey: settings.tcgApiKey, cache });
-      return { parsed: parseManual(trimmed), ranked: [{ card, score: 100 }], confidence: 'high', query: trimmed };
-    } catch {
-      /* not an ID; fall through to text search */
+    for (const lang of LANGS) {
+      try {
+        const card = await getCard(trimmed, lang, { cache });
+        return { parsed: parseManual(trimmed), ranked: [{ card, score: 100 }], confidence: 'high', query: trimmed };
+      } catch {
+        /* not an ID in this language */
+      }
     }
   }
-  return runQueries(parseManual(trimmed), settings);
+  return runQueries(parseManual(trimmed));
+}
+
+/** Search results are brief; this loads the full card with prices. */
+export async function fullCard(card: Card): Promise<Card> {
+  return card.brief ? getCard(card.id, card.lang, { cache }) : card;
+}
+
+export function langLabel(lang: Lang): string {
+  return lang === 'ja' ? 'Japanese' : 'English';
 }
 
 export interface Priced {

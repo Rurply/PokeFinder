@@ -3,9 +3,9 @@
 import { getRates, formatMoney, convert, type Rates } from '../lib/currency';
 import { parseManual, type Confidence, type Parsed } from '../lib/match';
 import { verifyCert, type PsaResult } from '../lib/psa';
-import { fetchImageViaWorker, identifyImage, identifyManual, priceFor, type Identification, type Priced } from '../lib/scan';
+import { fetchImageViaWorker, fullCard, identifyImage, identifyManual, langLabel, priceFor, type Identification, type Priced } from '../lib/scan';
 import { addHistory, cache, getSettings, updateHistory, type Settings } from '../lib/storage';
-import type { Card } from '../lib/tcgapi';
+import type { Card } from '../lib/tcgdex';
 import { gradedSearch } from '../lib/graded';
 import { h, sourceLine } from '../lib/ui';
 import { dealVerdict, VERDICT_LABEL } from '../lib/verdict';
@@ -13,6 +13,8 @@ import { dealVerdict, VERDICT_LABEL } from '../lib/verdict';
 const params = new URLSearchParams(location.hash.slice(1));
 const src = params.get('src') ?? '';
 const pageUrl = params.get('page') ?? '';
+/** Listing title from the marketplace page (a hint; absent for right-click scans). */
+const listingTitle = params.get('title');
 const mode = params.get('mode') === 'window' ? 'window' : 'inline';
 const scanId = crypto.randomUUID();
 
@@ -94,6 +96,8 @@ async function select(card: Card, confidence: Confidence | 'manual') {
   state.confidence = confidence;
   setStatus('Getting price…');
   try {
+    card = await fullCard(card);
+    state.selected = card;
     state.priced = await priceFor(card, state.settings);
     await ratesIfNeeded();
     setStatus('');
@@ -113,6 +117,7 @@ async function saveHistory() {
     id: scanId,
     scannedAt: Date.now(),
     cardId: card.id,
+    lang: card.lang,
     name: card.name,
     setName: card.set.name,
     number: card.number,
@@ -142,7 +147,7 @@ function cardHeader(card: Card): HTMLElement {
       'div',
       {},
       h('h2', {}, card.name),
-      h('div', { class: 'meta' }, `${card.set.name} · ${card.number}${card.set.printedTotal ? '/' + card.set.printedTotal : ''}`),
+      h('div', { class: 'meta' }, `${card.set.name} · ${card.number}${card.set.printedTotal ? '/' + card.set.printedTotal : ''}${card.lang === 'ja' ? ' · Japanese' : ''}`),
       card.rarity ? h('div', { class: 'meta' }, card.rarity) : null,
       h('span', { class: `badge ${conf}` }, label),
     ),
@@ -174,7 +179,10 @@ function gradedSalesLinks(): HTMLElement | null {
   const slab = state.ident?.parsed.slab;
   if (!card || !slab?.isSlab) return null;
   const grade = state.psa?.status === 'verified' ? state.psa.cert.grade ?? slab.grade : slab.grade;
-  const s = gradedSearch({ name: card.name, number: card.number, grade, currency: state.settings.currency });
+  // Japanese card names are in Japanese; sellers on eBay/PSA list them by their English name.
+  const titleName = state.ident?.parsed.title?.names.slice(0, 3).join(' ');
+  const name = card.lang === 'ja' ? `${titleName || card.name} japanese` : card.name;
+  const s = gradedSearch({ name, number: card.number.replace(/^0+(?=\d)/, ''), grade, currency: state.settings.currency });
   const open = (url: string) => () => void chrome.runtime.sendMessage({ type: 'cardcheck:openSales', url });
   const label = grade ? `PSA ${grade.match(/\d+(?:\.5)?/)?.[0] ?? grade}` : 'PSA';
   return h(
@@ -275,7 +283,7 @@ function candidatesSection(): HTMLElement | null {
           'button',
           { type: 'button', class: `cand${state.selected?.id === c.id ? ' selected' : ''}`, onclick: () => select(c, 'manual') },
           c.images?.small ? h('img', { src: c.images.small, alt: '' }) : null,
-          h('span', {}, h('strong', {}, c.name), h('br'), h('span', { class: 'meta' }, `${c.set.name} · ${c.number}/${c.set.printedTotal ?? '?'}`)),
+          h('span', {}, h('strong', {}, c.name), h('br'), h('span', { class: 'meta' }, `${c.lang === 'ja' ? '🇯🇵 ' : ''}${c.set.name} · ${c.number}/${c.set.printedTotal ?? '?'}`)),
         ),
       );
     }
@@ -288,7 +296,7 @@ function candidatesSection(): HTMLElement | null {
     if (!input.value.trim()) return;
     setStatus('Searching…');
     try {
-      const ident = await identifyManual(input.value, state.settings);
+      const ident = await identifyManual(input.value);
       if (!ident.ranked.length) {
         setStatus('No cards found for that search', 'error');
         return;
@@ -306,11 +314,23 @@ function candidatesSection(): HTMLElement | null {
 }
 
 function readSummary(p: Parsed): HTMLElement {
-  const bits = [
-    p.collector ? `number ${p.collector.number}${p.collector.total ? '/' + p.collector.total : ''}` : p.slab.number ? `number #${p.slab.number}` : 'no number',
+  const fromImage = [
+    p.collector ? `number ${p.collector.number}${p.collector.total ? '/' + p.collector.total : ''}` : p.slab.isSlab && p.slab.number ? `number #${p.slab.number}` : 'no number',
     p.names.length ? `name "${p.names.slice(0, 2).join(' ')}"` : 'no name',
   ];
-  return h('div', { class: 'read' }, `Read from image: ${bits.join(', ')}`);
+  const t = p.title;
+  const fromTitle = t
+    ? [t.collector ? `number ${t.collector.number}${t.collector.total ? '/' + t.collector.total : ''}` : '', t.names.length ? `"${t.names.slice(0, 3).join(' ')}"` : '', t.lang ? langLabel(t.lang) : '']
+        .filter(Boolean)
+        .join(', ')
+    : '';
+  return h(
+    'div',
+    { class: 'read' },
+    `Read from image: ${fromImage.join(', ')}`,
+    fromTitle ? h('br') : null,
+    fromTitle ? `From listing title: ${fromTitle}` : null,
+  );
 }
 
 function render() {
@@ -342,7 +362,7 @@ async function verifySlab(ident: Identification) {
     // Trust PSA's own subject/number over OCR when the OCR match was weak.
     const c = state.psa.cert;
     if (state.confidence !== 'high' && c.subject) {
-      const fromPsa = await identifyManual(`${c.subject} ${c.cardNumber ? '#' + c.cardNumber : ''}`, state.settings).catch(() => null);
+      const fromPsa = await identifyManual(`${c.subject} ${c.cardNumber ? '#' + c.cardNumber : ''}`).catch(() => null);
       if (fromPsa?.ranked.length) {
         state.ident = { ...fromPsa, parsed: { ...fromPsa.parsed, slab: ident.parsed.slab } };
         await select(fromPsa.ranked[0].card, fromPsa.confidence);
@@ -364,7 +384,7 @@ async function run() {
   try {
     setStatus('Fetching image…');
     const blob = await fetchImageViaWorker(src);
-    const ident = await identifyImage(blob, state.settings, (s) => setStatus(s));
+    const ident = await identifyImage(blob, listingTitle, (s) => setStatus(s));
     state.ident = ident;
     if (ident.ranked.length) await select(ident.ranked[0].card, ident.confidence);
     else {

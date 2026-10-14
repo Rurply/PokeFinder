@@ -180,6 +180,24 @@ function init(s: SiteSelectors) {
     return findPriceNear(img);
   }
 
+  /** The seller's listing title (tile or listing page), used as an identification hint. */
+  function listingTitle(img: HTMLImageElement): string | null {
+    const card = closestFirst(img, s.card);
+    const root: ParentNode | null = card ?? (isListingPage(s, location.pathname) ? document : null);
+    const selectors = card ? s.cardTitle : s.pageTitle;
+    for (const sel of root ? selectors : []) {
+      let el: Element | null = null;
+      try {
+        el = root!.querySelector(sel);
+      } catch {
+        continue;
+      }
+      const text = el?.getAttribute('title') || (el instanceof HTMLImageElement ? el.alt : el?.textContent) || '';
+      if (text.trim().length >= 3) return s.cleanTitle(text.replace(/\s+/g, ' ').trim()).slice(0, 200);
+    }
+    return img.alt?.trim() ? s.cleanTitle(img.alt.trim()).slice(0, 200) : null;
+  }
+
   function positionOverlay(frame: HTMLIFrameElement, img: HTMLImageElement) {
     if (!img.isConnected) return;
     const r = img.getBoundingClientRect();
@@ -195,6 +213,8 @@ function init(s: SiteSelectors) {
     for (const [f, i] of overlays) if (i === img) closeOverlay(f);
     const asking = parseAskingPrice(askingText(img), s.currency);
     const params = new URLSearchParams({ src: bestImageUrl(img, s), page: location.href, mode: 'inline' });
+    const title = listingTitle(img);
+    if (title) params.set('title', title);
     if (asking) {
       params.set('price', String(asking.amount));
       params.set('cur', asking.currency);

@@ -29,7 +29,7 @@ const CH = '[0-9OoQDlIiL!ZzSs$GbTBgq]';
 const SEP = '\\s*[\\/\\\\⁄]\\s*';
 const PLAIN_RE = new RegExp(`(?<![0-9])(${CH}{1,3})${SEP}(${CH}{2,3})(?![0-9])`, 'g');
 const PREFIX_RE = new RegExp(
-  `(?<![A-Za-z])(TG|GG|SV|RC)\\s?(${CH}{1,3})${SEP}(?:TG|GG|SV|RC)?\\s?(${CH}{2,3})(?![0-9])`,
+  `(?<![A-Za-z])(TG|GG|SV|RC|H)\\s?(${CH}{1,3})${SEP}(?:TG|GG|SV|RC|H)?\\s?(${CH}{2,3})(?![0-9])`,
   'gi',
 );
 
@@ -64,7 +64,8 @@ export function findCollectorNumbers(text: string): CollectorNumber[] {
     const total = parseInt(tot.digits, 10);
     if (total < 10 || total > 400) continue;
     const prefix = m[1].toUpperCase();
-    const width = Math.max(2, num.digits.length);
+    // Aquapolis/Skyridge holos are numbered H1..H32 without padding.
+    const width = prefix === 'H' ? 1 : Math.max(2, num.digits.length);
     out.push({
       number: prefix + num.digits.padStart(width, '0'),
       total,

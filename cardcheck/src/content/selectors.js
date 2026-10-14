@@ -16,9 +16,12 @@
  * @property {string[]} card             A listing tile in search results / grids
  * @property {string[]} cardImage        The photo inside a tile
  * @property {string[]} cardPrice        The asking price inside a tile
+ * @property {string[]} cardTitle        The listing title inside a tile (text, or title/alt attribute)
  * @property {string[]} pageGallery      Photo gallery on a listing page
  * @property {string[]} pageImage        Photo(s) on a listing page
  * @property {string[]} pagePrice        Asking price on a listing page
+ * @property {string[]} pageTitle        Listing title on a listing page
+ * @property {(title: string) => string} cleanTitle  Strip site-added extras from a title
  * @property {RegExp} imageHost          Hostnames serving listing photos (generic fallback)
  * @property {(url: string) => string} upgradeImageUrl  Ask the CDN for a larger photo
  */
@@ -33,9 +36,12 @@ export const SITES = {
     card: ['li.hz-Listing', '[class*="hz-Listing--list-item"]', '[class*="hz-Listing--grid"]', 'article[class*="Listing"]'],
     cardImage: ['.hz-Listing-image-container img', '[class*="Listing-image"] img', 'img.hz-Image', 'img'],
     cardPrice: ['[class*="ListingPrice_hz-Listing-price"]', '.hz-Listing-price', '[class*="Listing-price"]'],
+    cardTitle: ['[class*="ListingTitle_hz-Listing-title"]', '[class*="hz-Listing-title"]', 'h3', 'img[alt]'],
     pageGallery: ['.Gallery-module-root', '[class*="Gallery-module"]', '.Carousel-root', '#listing-root [class*="Gallery"]'],
     pageImage: ['li.slide.selected img.Carousel-module-image', 'img.Carousel-module-image', 'img.HeroImage-module-image', '[class*="HeroImage"] img', '.Gallery-module-root img', '#listing-root img'],
     pagePrice: ['.ListingHeader-module-price', '[class*="ListingHeader-module-price"]', '[class*="ListingHeader"] [class*="price"]', '.listing-price'],
+    pageTitle: ['h1.ListingHeader-module-title', '[class*="ListingHeader-module-title"]', '#listing-root h1', 'h1'],
+    cleanTitle: (t) => t,
     imageHost: /(^|\.)marktplaats\.com$/,
     upgradeImageUrl: (url) =>
       // Size is selected by ?rule=…eps_NN / ecg_mp_eps$_NN; 85 is the large listing photo.
@@ -50,9 +56,14 @@ export const SITES = {
     card: ['[data-testid="grid-item"]', '[data-testid^="product-item-id-"]:not([data-testid*="--"])', '.feed-grid__item', '[class*="new-item-box__container"]'],
     cardImage: ['img[data-testid$="--image--img"]', '[class*="new-item-box__image"] img', '.web_ui__Image__content', 'img'],
     cardPrice: ['[data-testid$="--price-text"]', '[class*="new-item-box__title"] p', '[class*="ItemBoxPricing"] p'],
+    // Tiles show brand/condition as text; the real title is in the link's title attribute.
+    cardTitle: ['a[data-testid$="--overlay-link"][title]', 'img[data-testid$="--image--img"][alt]', 'img[alt]'],
     pageGallery: ['[data-testid="item-photos"]', '.item-photos', '[class*="item-photos"]', 'section[class*="photos"]', 'figure'],
     pageImage: ['[data-testid^="item-photo-"] img', '.item-photos img', '[class*="item-photo"] img', 'figure img'],
     pagePrice: ['[data-testid="item-price"]', '[data-testid*="item-price"]', '[itemprop="price"]', '[class*="ItemPrice"]', '[class*="item-price"]'],
+    pageTitle: ['[data-testid="item-title"]', '[data-testid*="item-title"]', '[itemprop="name"]', 'h1'],
+    // "Charizard 11/108, Merk: Pokémon, Staat: Zeer goed, 18.99 €" -> "Charizard 11/108"
+    cleanTitle: (t) => t.split(/,\s*(?:Merk|Brand|Marke|Marque|Staat|Condition|Zustand|État|Maat|Size)\s*:/i)[0],
     imageHost: /(^|\.)vinted\.net$/,
     // Vinted photo URLs are signed per size (?s=…), so the thumbnail URL can't be rewritten.
     // The page's embedded JSON usually holds the signed 800px ("f800") URL of the same photo.

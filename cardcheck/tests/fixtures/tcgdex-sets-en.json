@@ -1,0 +1,42 @@
+[
+ {
+  "id": "ex16",
+  "name": "Power Keepers",
+  "cardCount": {
+   "total": 108,
+   "official": 108
+  }
+ },
+ {
+  "id": "bw5",
+  "name": "Dark Explorers",
+  "cardCount": {
+   "total": 111,
+   "official": 108
+  }
+ },
+ {
+  "id": "xy6",
+  "name": "Roaring Skies",
+  "cardCount": {
+   "total": 112,
+   "official": 108
+  }
+ },
+ {
+  "id": "xy12",
+  "name": "Evolutions",
+  "cardCount": {
+   "total": 113,
+   "official": 108
+  }
+ },
+ {
+  "id": "sv03",
+  "name": "Obsidian Flames",
+  "cardCount": {
+   "total": 230,
+   "official": 197
+  }
+ }
+]
