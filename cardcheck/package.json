@@ -1,0 +1,26 @@
+{
+  "name": "cardcheck",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CardCheck - identify Pokémon cards and PSA slabs in Marktplaats/Vinted listings and check the deal.",
+  "type": "module",
+  "scripts": {
+    "prepare-assets": "node scripts/copy-tesseract.mjs",
+    "build": "npm run prepare-assets && tsc --noEmit && vite build",
+    "dev": "npm run prepare-assets && vite",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "live-check": "vitest run -c vitest.live.config.ts"
+  },
+  "dependencies": {
+    "@tesseract.js-data/eng": "1.0.0",
+    "tesseract.js": "7.0.0"
+  },
+  "devDependencies": {
+    "@crxjs/vite-plugin": "2.7.1",
+    "@types/chrome": "0.2.0",
+    "typescript": "5.9.3",
+    "vite": "7.3.7",
+    "vitest": "4.1.11"
+  }
+}
