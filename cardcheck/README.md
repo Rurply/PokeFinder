@@ -57,7 +57,11 @@ After changing code, run `npm run build` again and click the reload icon on the 
 - **PSA slabs:** CardCheck reads the cert number, grade and label text. With a PSA token in Settings
   it also verifies the cert through the PSA API. For slabs, the price shown is always the
   ungraded value, labelled **"Raw value – graded price not available (free mode)"**. CardCheck never
-  estimates a graded price.
+  estimates a graded price. To see what that grade really sells for, click **eBay sold · PSA 8** or
+  **PSA auction prices** in the panel. They open recent sold listings and PSA's auction results for
+  that card and grade in a compact CardCheck window, reused for both. CardCheck doesn't read any prices
+  from those pages. PSA's auction search asks you to sign in with a free PSA account. eBay uses
+  ebay.de for EUR, ebay.co.uk for GBP and ebay.com otherwise.
 - **Popup:** shows your last 50 scans. Click ☆ to **watch** a card. Each time the popup opens,
   watched cards are re-priced and get a ▲/▼/▬ arrow comparing the current price with the price at
   scan time.

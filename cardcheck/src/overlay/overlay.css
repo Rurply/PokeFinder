@@ -60,3 +60,7 @@ form.search button, .link { font: inherit; }
 .link { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; text-decoration: underline; }
 .read { color: var(--muted); font-size: 11px; margin-top: 6px; }
 a { color: var(--accent); }
+.graded { margin-top: 6px; }
+.graded-buttons { display: flex; gap: 6px; margin-top: 3px; flex-wrap: wrap; }
+.graded-buttons button { font: inherit; font-size: 12px; padding: 4px 8px; border: 1px solid var(--accent); border-radius: 6px; background: #eff6ff; color: var(--accent); cursor: pointer; }
+.graded-buttons button:hover { background: #dbeafe; }

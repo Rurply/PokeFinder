@@ -1,5 +1,6 @@
 // Service worker: context menu, image fetching (avoids page CORS) and cache housekeeping.
 import { TTL } from '../lib/cache';
+import { isGradedSalesUrl } from '../lib/graded';
 import { cache } from '../lib/storage';
 
 const MENU_ID = 'cardcheck-scan';
@@ -57,8 +58,38 @@ async function fetchImage(url: string): Promise<{ ok: true; base64: string; type
   }
 }
 
+// Graded sales open in one reusable, compact CardCheck window (no tabs or address bar),
+// docked to the right of the current browser window. The sites refuse or break when
+// embedded in the panel, so they get their own window instead.
+async function openSalesWindow(url: string): Promise<void> {
+  const { salesWindowId } = (await chrome.storage.session.get('salesWindowId')) as { salesWindowId?: number };
+  if (salesWindowId != null) {
+    try {
+      const [tab] = await chrome.tabs.query({ windowId: salesWindowId });
+      if (tab?.id != null) {
+        await chrome.tabs.update(tab.id, { url });
+        await chrome.windows.update(salesWindowId, { focused: true });
+        return;
+      }
+    } catch {
+      /* window was closed */
+    }
+  }
+  const width = 560;
+  const height = 860;
+  const anchor = await chrome.windows.getLastFocused().catch(() => undefined);
+  const left = anchor?.left != null && anchor.width != null ? Math.max(0, anchor.left + anchor.width - width - 16) : undefined;
+  const top = anchor?.top != null ? anchor.top + 60 : undefined;
+  const win = await chrome.windows.create({ url, type: 'popup', width, height, left, top, focused: true });
+  if (win?.id != null) await chrome.storage.session.set({ salesWindowId: win.id });
+}
+
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id) return;
+  if (msg?.type === 'cardcheck:openSales' && typeof msg.url === 'string' && isGradedSalesUrl(msg.url)) {
+    void openSalesWindow(msg.url);
+    return;
+  }
   if (msg?.type === 'cardcheck:fetchImage' && typeof msg.url === 'string') {
     fetchImage(msg.url).then(sendResponse);
     return true;

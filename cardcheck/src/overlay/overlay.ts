@@ -6,6 +6,7 @@ import { verifyCert, type PsaResult } from '../lib/psa';
 import { fetchImageViaWorker, identifyImage, identifyManual, priceFor, type Identification, type Priced } from '../lib/scan';
 import { addHistory, cache, getSettings, updateHistory, type Settings } from '../lib/storage';
 import type { Card } from '../lib/tcgapi';
+import { gradedSearch } from '../lib/graded';
 import { h, sourceLine } from '../lib/ui';
 import { dealVerdict, VERDICT_LABEL } from '../lib/verdict';
 
@@ -167,6 +168,28 @@ function slabSection(p: Parsed): HTMLElement | null {
   );
 }
 
+/** Buttons that open real graded sales (eBay sold, PSA auction prices) in the CardCheck window. */
+function gradedSalesLinks(): HTMLElement | null {
+  const card = state.selected;
+  const slab = state.ident?.parsed.slab;
+  if (!card || !slab?.isSlab) return null;
+  const grade = state.psa?.status === 'verified' ? state.psa.cert.grade ?? slab.grade : slab.grade;
+  const s = gradedSearch({ name: card.name, number: card.number, grade, currency: state.settings.currency });
+  const open = (url: string) => () => void chrome.runtime.sendMessage({ type: 'cardcheck:openSales', url });
+  const label = grade ? `PSA ${grade.match(/\d+(?:\.5)?/)?.[0] ?? grade}` : 'PSA';
+  return h(
+    'div',
+    { class: 'graded' },
+    h('div', { class: 'src' }, `Check real ${label} sales for “${s.query}”:`),
+    h(
+      'div',
+      { class: 'graded-buttons' },
+      h('button', { type: 'button', onclick: open(s.ebay), title: 'Recently sold listings on eBay' }, `eBay sold · ${label}`),
+      h('button', { type: 'button', onclick: open(s.psa), title: 'PSA Auction Prices Realized (free PSA sign-in required)' }, 'PSA auction prices'),
+    ),
+  );
+}
+
 function priceSection(): HTMLElement {
   const s = state.settings;
   const pr = state.priced;
@@ -175,6 +198,8 @@ function priceSection(): HTMLElement {
   const primary = pr?.choice.primary;
   if (!primary) {
     sec.append(h('div', { class: 'big' }, 'No price data'), h('div', { class: 'src' }, 'The Pokémon TCG API has no Cardmarket or TCGplayer price for this card.'));
+    const links = gradedSalesLinks();
+    if (links) sec.append(links);
     return sec;
   }
   if (pr.converted != null) {
@@ -191,6 +216,8 @@ function priceSection(): HTMLElement {
   const second = pr.choice.secondary;
   if (second) sec.append(h('div', { class: 'src' }, `Also: ${sourceLine(second)}`));
   if (isSlab) sec.append(h('div', { class: 'raw-label' }, 'Raw value – graded price not available (free mode)'));
+  const links = gradedSalesLinks();
+  if (links) sec.append(links);
   return sec;
 }
 
